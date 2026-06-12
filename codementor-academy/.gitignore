@@ -33,3 +33,9 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# runtime logs / curl artifacts
+*.log
+server.log
+HTTP
+cookies.txt
