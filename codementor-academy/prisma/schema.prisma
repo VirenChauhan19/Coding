@@ -1,0 +1,248 @@
+// CodeMentor Academy — Prisma schema
+// Database: SQLite (swap `provider` to "postgresql" for production).
+//
+// SQLite has no native enum/JSON types, so:
+//   - "enum-like" fields are plain strings (allowed values documented inline).
+//   - structured data (options, test cases, answers) is stored as JSON strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users & Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          String   @default("STUDENT") // STUDENT | ADMIN
+  createdAt     DateTime @default(now())
+
+  // Gamification / progress aggregates
+  xp                Int       @default(0) // total experience points
+  streakCount       Int       @default(0)
+  lastActiveDate    DateTime?
+  timeSpentSeconds  Int       @default(0)
+
+  enrollments     Enrollment[]
+  lessonProgress  LessonProgress[]
+  quizAttempts    QuizAttempt[]
+  examAttempts    ExamAttempt[]
+  topicStats      TopicStat[]
+  badges          UserBadge[]
+}
+
+// ---------------------------------------------------------------------------
+// Courses & Content
+// ---------------------------------------------------------------------------
+
+model Course {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  language    String  // Python | JavaScript | HTML/CSS | C++ | Java | SQL
+  title       String
+  description String
+  icon        String  @default("📘") // emoji or icon key
+  color       String  @default("#6366f1")
+  order       Int     @default(0)
+
+  lessons     Lesson[]
+  exams       Exam[]
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+model Lesson {
+  id            String  @id @default(cuid())
+  courseId      String
+  slug          String
+  title         String
+  level         String  // BEGINNER | INTERMEDIATE | ADVANCED
+  order         Int     @default(0)
+  estMinutes    Int     @default(10)
+
+  // Markdown-ish content rendered by a lightweight renderer
+  content       String  // main explanation
+  codeExample   String  @default("")
+  summary       String  @default("")
+  // JSON string: string[] — "what you should know before moving on" checklist
+  prerequisites String  @default("[]")
+
+  course           Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quizzes          Quiz[]
+  practiceProblems PracticeProblem[]
+  lessonProgress   LessonProgress[]
+
+  @@unique([courseId, slug])
+}
+
+model PracticeProblem {
+  id          String  @id @default(cuid())
+  lessonId    String?
+  courseId    String?
+  title       String
+  prompt      String
+  language    String  @default("javascript")
+  starterCode String  @default("")
+  solution    String  @default("")
+  difficulty  String  @default("EASY") // EASY | MEDIUM | HARD
+  topic       String  @default("")
+  // JSON string: { input: string, expected: string, description?: string }[]
+  testCases   String  @default("[]")
+  order       Int     @default(0)
+
+  lesson Lesson? @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Quizzes, Exams & Questions
+// ---------------------------------------------------------------------------
+
+model Quiz {
+  id       String @id @default(cuid())
+  lessonId String
+  title    String
+  order    Int    @default(0)
+
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+model Exam {
+  id              String @id @default(cuid())
+  courseId        String
+  title           String
+  level           String @default("BEGINNER") // BEGINNER | INTERMEDIATE | ADVANCED
+  durationMinutes Int    @default(30)
+  passingScore    Int    @default(60) // percentage required to pass
+  isBoss          Boolean @default(false) // "final boss" exam for the language
+  xpReward        Int    @default(200)   // XP granted on passing
+
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  ExamAttempt[]
+}
+
+model Question {
+  id          String  @id @default(cuid())
+  quizId      String?
+  examId      String?
+  // MULTIPLE_CHOICE | TRUE_FALSE | FILL_BLANK | CODE_OUTPUT | DEBUG | SHORT_ANSWER
+  type        String
+  prompt      String
+  code        String  @default("") // optional code shown with the question
+  // JSON string: string[] (choices for MULTIPLE_CHOICE)
+  options     String  @default("[]")
+  // Correct answer (for MC: the exact option text; TF: "true"/"false"; etc.)
+  answer      String
+  explanation String  @default("")
+  difficulty  String  @default("EASY") // EASY | MEDIUM | HARD
+  topic       String  @default("")
+  order       Int     @default(0)
+
+  quiz Quiz? @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  exam Exam? @relation(fields: [examId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Progress, Attempts & Gamification
+// ---------------------------------------------------------------------------
+
+model LessonProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  lessonId    String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  timeSpent   Int       @default(0) // seconds
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  quizId    String
+  score     Int      // number correct
+  total     Int      // total questions
+  // JSON string: { questionId: string, answer: string, correct: boolean }[]
+  answers   String   @default("[]")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model ExamAttempt {
+  id              String   @id @default(cuid())
+  userId          String
+  examId          String
+  score           Int      // number correct
+  total           Int      // total questions
+  passed          Boolean  @default(false)
+  durationSeconds Int      @default(0)
+  // JSON string: { questionId: string, answer: string, correct: boolean }[]
+  answers         String   @default("[]")
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+}
+
+// Per-topic performance, used to surface "weak topics" + recommendations.
+model TopicStat {
+  id      String @id @default(cuid())
+  userId  String
+  topic   String
+  correct Int    @default(0)
+  total   Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topic])
+}
+
+model Badge {
+  id          String @id @default(cuid())
+  key         String @unique
+  name        String
+  description String
+  icon        String @default("🏅")
+
+  users UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
