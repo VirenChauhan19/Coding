@@ -89,6 +89,24 @@ so the dashboard is populated immediately. The admin account unlocks the **Admin
 
 ---
 
+## 📲 Install as an app (PWA)
+
+CodeMentor is a **Progressive Web App** — it installs as a real, standalone app
+(its own window/icon, no browser chrome) on both desktop and tablet.
+
+| Device | How to install |
+|--------|----------------|
+| **Windows** (Edge/Chrome) | Open the app → click the **Install** icon in the address bar (or the in-app "Install" button) → it gets a Start-menu entry and its own window, like VS Code. Works from `http://localhost:3000` in dev. |
+| **iPad / iPhone** (Safari) | Open the **deployed HTTPS URL** → tap **Share** → **Add to Home Screen** → launches fullscreen, like Duolingo. *(iOS requires a public HTTPS URL — install after deploying; it can't use `localhost`.)* |
+| **Android** (Chrome) | Tap the **Install app** prompt / menu → adds to the home screen. |
+
+Offline support, app icons, and a splash screen are included
+(`public/manifest.webmanifest`, `public/sw.js`, `public/icons/`).
+
+> **Want a true downloadable `.exe`** (VS Code-style installer rather than a
+> browser-installed app)? The web app can be wrapped with **Electron** — ask and
+> it can be scaffolded for Windows.
+
 ## 📁 Project Structure
 
 ```
